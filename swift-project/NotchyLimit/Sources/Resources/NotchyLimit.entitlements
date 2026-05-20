@@ -2,6 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!--
+      App Sandbox is currently disabled so the swiftc (Mode A) build works
+      without a Developer ID or code signing. For any signed / distributed
+      binary enable the sandbox here and add the keychain-access-groups
+      entitlement below — macOS will then scope Keychain items to this app's
+      container automatically, preventing other processes from reading them.
+
+      To enable for Mode B (Xcode) builds:
+        1. Set com.apple.security.app-sandbox to <true/>
+        2. Add: <key>com.apple.security.keychain-access-groups</key>
+                <array><string>$(AppIdentifierPrefix)com.notchylimit.NotchyLimit</string></array>
+        3. Sign with a Developer ID (see scripts/sign_and_notarize.sh)
+    -->
     <key>com.apple.security.app-sandbox</key>
     <false/>
     <key>com.apple.security.network.client</key>

@@ -55,8 +55,9 @@ final class ClaudeProvider: UsageProvider {
         let data = try await get(url: ClaudeEndpoint.bootstrap)
         do {
             let dto = try JSONDecoder().decode(ClaudeBootstrapDTO.self, from: data)
-            guard let orgId = dto.account?.lastActiveOrgId else {
-                throw ProviderError.decoding("bootstrap missing account.lastActiveOrgId")
+            guard let orgId = dto.account?.lastActiveOrgId,
+                  UUID(uuidString: orgId) != nil else {
+                throw ProviderError.decoding("bootstrap missing or invalid lastActiveOrgId")
             }
             return orgId
         } catch let providerError as ProviderError {

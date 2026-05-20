@@ -34,6 +34,9 @@ public final class AuthService {
         guard trimmed.count >= 32 else {
             return "Cookie looks too short. Paste the full Cookie header from DevTools."
         }
+        guard trimmed.count <= 65_536 else {
+            return "That doesn't look right — it's too long. Copy only the Cookie header value."
+        }
         // Cookies never belong in logs — sanitize before any storage.
         let sanitized = ClaudeCredential(
             cookie: trimmed,

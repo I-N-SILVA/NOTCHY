@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Five-step onboarding: Welcome → Provider → Cookie → Validate → Notifications.
 struct OnboardingView: View {
@@ -128,13 +129,11 @@ struct OnboardingView: View {
             Text("Paste your claude.ai cookie")
                 .font(.title3.weight(.semibold))
                 .foregroundColor(Theme.textPrimary)
-            Text("In claude.ai → DevTools → Network → 'usage' request → copy the full Cookie header.")
+            Text("In claude.ai, open DevTools (⌘⌥I), go to Network, find the 'usage' request, and copy the full Cookie header.")
                 .font(Theme.captionFont)
                 .foregroundColor(Theme.textSecondary)
-            TextEditor(text: $cookieInput)
-                .font(.system(size: 11, design: .monospaced))
+            SecureCookieEditor(text: $cookieInput)
                 .frame(height: 110)
-                .padding(6)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
             if let err = validateError {
                 Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
@@ -242,6 +241,56 @@ struct OnboardingView: View {
                     validating = false
                 }
             }
+        }
+    }
+}
+
+// MARK: - Secure cookie text editor
+
+/// NSTextView wrapper that disables all macOS text-processing features
+/// (autocorrect, spellcheck, data detection, smart quotes, link detection)
+/// so the session cookie is never sent to Apple autocorrect services.
+/// Also enforces a hard 65 536-character length cap.
+private struct SecureCookieEditor: NSViewRepresentable {
+    @Binding var text: String
+    private static let maxLength = 65_536
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        guard let tv = scrollView.documentView as? NSTextView else { return scrollView }
+        tv.isAutomaticSpellingCorrectionEnabled  = false
+        tv.isAutomaticDataDetectionEnabled       = false
+        tv.isAutomaticLinkDetectionEnabled       = false
+        tv.isAutomaticTextReplacementEnabled     = false
+        tv.isAutomaticQuoteSubstitutionEnabled   = false
+        tv.isAutomaticDashSubstitutionEnabled    = false
+        tv.isContinuousSpellCheckingEnabled      = false
+        tv.isGrammarCheckingEnabled              = false
+        tv.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        tv.textColor = NSColor.white.withAlphaComponent(0.88)
+        tv.backgroundColor = .clear
+        tv.drawsBackground = false
+        tv.delegate = context.coordinator
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let tv = scrollView.documentView as? NSTextView else { return }
+        if tv.string != text { tv.string = text }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: SecureCookieEditor
+        init(_ parent: SecureCookieEditor) { self.parent = parent }
+
+        func textDidChange(_ notification: Notification) {
+            guard let tv = notification.object as? NSTextView else { return }
+            if tv.string.count > SecureCookieEditor.maxLength {
+                tv.string = String(tv.string.prefix(SecureCookieEditor.maxLength))
+            }
+            parent.text = tv.string
         }
     }
 }

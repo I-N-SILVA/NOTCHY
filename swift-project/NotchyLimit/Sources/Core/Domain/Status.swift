@@ -31,10 +31,13 @@ public enum ProviderError: Error, Hashable, CustomStringConvertible {
         case .missingCredentials: return "Missing credentials"
         case .unauthorized:       return "Authentication expired"
         case .rateLimited:        return "Rate limited"
-        case .transport(let m):   return "Network error: \(m)"
+        // transport and unknown intentionally omit the raw message —
+        // URLError.localizedDescription can contain request URLs (with orgId)
+        // and system paths. Fixed strings prevent accidental PII exposure in UI.
+        case .transport:          return "Network error — check your connection."
         case .decoding(let m):    return "Response schema changed: \(m)"
         case .server(let code):   return "Server error (\(code))"
-        case .unknown(let m):     return m
+        case .unknown:            return "An unexpected error occurred."
         }
     }
 

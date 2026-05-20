@@ -17,11 +17,17 @@ public struct ClaudeCredential: Codable, Hashable {
     }
 
     /// Extract `lastActiveOrg` value from the cookie string if present.
+    ///
+    /// Returns nil if the value is absent or is not a valid UUID.
+    /// Rejecting non-UUID values prevents path injection when the result
+    /// is interpolated into a URL in `ClaudeEndpoint.usage(orgId:)`.
     public var orgIdFromCookie: String? {
         for part in cookie.split(separator: ";") {
             let trimmed = part.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("lastActiveOrg=") {
-                return String(trimmed.dropFirst("lastActiveOrg=".count))
+                let value = String(trimmed.dropFirst("lastActiveOrg=".count))
+                guard UUID(uuidString: value) != nil else { return nil }
+                return value
             }
         }
         return nil

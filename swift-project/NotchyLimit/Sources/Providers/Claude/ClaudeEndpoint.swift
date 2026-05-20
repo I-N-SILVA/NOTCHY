@@ -8,7 +8,16 @@ enum ClaudeEndpoint {
     static let bootstrap   = URL(string: "https://claude.ai/api/bootstrap")!
 
     static func usage(orgId: String) -> URL {
-        URL(string: "https://claude.ai/api/organizations/\(orgId)/usage")!
+        // Use URLComponents so the path is percent-encoded by the system,
+        // preventing orgId content from escaping the intended path segment.
+        var c = URLComponents()
+        c.scheme = "https"
+        c.host   = "claude.ai"
+        c.path   = "/api/organizations/\(orgId)/usage"
+        guard let url = c.url else {
+            preconditionFailure("orgId produced an unparseable URL — validate before calling usage(orgId:)")
+        }
+        return url
     }
 
     /// Headers the official site sends. We replicate them to avoid being

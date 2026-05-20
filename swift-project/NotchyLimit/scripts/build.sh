@@ -52,6 +52,11 @@ if [[ "${USE_XCODEBUILD:-0}" == "1" ]]; then
 fi
 
 # ── Mode A: swiftc (no Xcode required) ─────────────────────────────────────
+echo ""
+echo "  NOTE: Mode A produces an UNSIGNED binary for local use only."
+echo "  Do not distribute this build. For a distributable binary, use"
+echo "  Mode B (USE_XCODEBUILD=1) with a Developer ID and scripts/sign_and_notarize.sh."
+echo ""
 echo "==> Compiling $APP_NAME with swiftc (no Xcode required)"
 swiftc \
   -sdk "$SDK" \
@@ -129,5 +134,8 @@ iconutil -c icns "$ICONSET" -o "$APP_CONTENTS/Resources/AppIcon.icns"
 xattr -cr "$APP_BUNDLE" 2>/dev/null || true
 
 echo ""
-echo "==> Built: $APP_BUNDLE"
-echo "Run with: open $APP_BUNDLE"
+echo "==> Built (unsigned, local use only): $APP_BUNDLE"
+echo "    Run with: open $APP_BUNDLE"
+echo ""
+echo "  This binary is unsigned. Do not share or distribute it."
+echo "  For distribution use: USE_XCODEBUILD=1 bash scripts/build.sh"

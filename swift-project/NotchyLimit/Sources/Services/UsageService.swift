@@ -80,7 +80,8 @@ public final class UsageService {
             await publish(error: error)
         } catch {
             consecutiveErrors += 1
-            await publish(error: .unknown(error.localizedDescription))
+            // localizedDescription may contain system paths or request URLs — discard it.
+            await publish(error: .unknown("unexpected"))
         }
     }
 

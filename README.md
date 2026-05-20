@@ -5,12 +5,25 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](swift-project/NotchyLimit/LICENSE)
 [![macOS 12+](https://img.shields.io/badge/macOS-12.0%2B-blue)](https://www.apple.com/macos/)
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange)](https://swift.org)
+[![GitHub stars](https://img.shields.io/github/stars/I-N-SILVA/NOTCHY?style=social)](https://github.com/I-N-SILVA/NOTCHY/stargazers)
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ff69b4)](https://github.com/sponsors/I-N-SILVA)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Buy%20me%20a%20coffee-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/iamnsilva)
 
 <p align="center">
   <img src="assets/demo.gif" alt="NOTCHY running on a MacBook Pro" width="680" />
 </p>
 
 NOTCHY is a free, open-source macOS utility that turns the MacBook hardware notch into a real-time Claude usage monitor. A minimal pill blends with the notch and shows your session percentage at a glance. Hover to expand into a full panel with session usage, weekly quota, time until reset, and threshold alerts. Everything runs locally with zero telemetry.
+
+---
+
+## Why NOTCHY?
+
+- **The notch is wasted real estate.** Apple uses it for the camera. macOS uses it for nothing. NOTCHY puts your most-checked number there.
+- **Claude limit anxiety is real.** Stop refreshing `claude.ai/settings/usage`. The percentage is always on screen.
+- **No tab, no Electron, no 400MB.** It's a native Swift app under 10MB. Hover-to-expand like Dynamic Island.
+- **Local-first, zero telemetry.** Talks to `claude.ai` only. Cookie lives in Keychain. Read every line yourself.
+- **Free forever.** MIT licensed. No paywalls, no upsells, no account.
 
 ---
 
@@ -177,10 +190,47 @@ This app uses an **undocumented** Claude endpoint. It is not affiliated with or 
 
 ---
 
+## Support the project
+
+NOTCHY is built and maintained by one person, in the open, for free. If it saves you from refreshing `claude.ai` every ten minutes — or you just want to see the roadmap below ship faster — please consider supporting the work.
+
+<p align="left">
+  <a href="https://ko-fi.com/iamnsilva">
+    <img src="https://img.shields.io/badge/Ko--fi-Buy%20me%20a%20coffee-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support on Ko-fi" />
+  </a>
+  &nbsp;
+  <a href="https://github.com/sponsors/I-N-SILVA">
+    <img src="https://img.shields.io/badge/GitHub-Sponsor-ea4aaa?style=for-the-badge&logo=github&logoColor=white" alt="Sponsor on GitHub" />
+  </a>
+</p>
+
+Every dollar goes back into the project: new providers (ChatGPT, Gemini), Sparkle auto-update, a one-click cookie helper, and keeping everything free and open-source forever. See [SPONSORS.md](SPONSORS.md) for the full list of backers.
+
+Not in a position to sponsor? **Star the repo** ⭐ — it's free and genuinely helps with discoverability.
+
+---
+
+## Community
+
+- 🐛 [Report a bug](https://github.com/I-N-SILVA/NOTCHY/issues/new?template=bug_report.md)
+- 💡 [Request a feature](https://github.com/I-N-SILVA/NOTCHY/issues/new?template=feature_request.md)
+- 💬 [Discussions](https://github.com/I-N-SILVA/NOTCHY/discussions) — usage questions, ideas, show-and-tell
+- 🐦 Follow [@iansilva](https://github.com/I-N-SILVA) for updates
+
+---
+
+## Star history
+
+<a href="https://star-history.com/#I-N-SILVA/NOTCHY&Date">
+  <img src="https://api.star-history.com/svg?repos=I-N-SILVA/NOTCHY&type=Date" alt="Star history chart" width="600" />
+</a>
+
+---
+
 ## License
 
 [MIT](swift-project/NotchyLimit/LICENSE) — Copyright 2026 Ian Silva
 
 ---
 
-*Built by [Ian Silva](https://github.com/I-N-SILVA)*
+*Built by [Ian Silva](https://github.com/I-N-SILVA). If NOTCHY makes your day a little easier, [buy me a coffee](https://ko-fi.com/iamnsilva) ☕*
