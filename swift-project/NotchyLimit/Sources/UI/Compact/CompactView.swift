@@ -37,11 +37,18 @@ struct CompactView: View {
                 CompactProgressBar(progress: appState.sessionPercent, color: statusColor)
                     .frame(height: 3)
 
-                // Usage percentage
-                Text("\(Int((appState.sessionPercent * 100).rounded()))%")
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.88))
-                    .frame(minWidth: 25, alignment: .trailing)
+                // Percentage — or reset countdown when the session is blocked
+                if appState.isAtSessionLimit {
+                    Text(appState.sessionResetShortString ?? "LIMIT")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                        .frame(minWidth: 40, alignment: .trailing)
+                } else {
+                    Text("\(Int((appState.sessionPercent * 100).rounded()))%")
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.88))
+                        .frame(minWidth: 25, alignment: .trailing)
+                }
             }
             .padding(.horizontal, 10)
             .frame(height: 22)

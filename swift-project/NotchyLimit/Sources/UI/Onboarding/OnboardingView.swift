@@ -221,7 +221,13 @@ struct OnboardingView: View {
         step = .validate
         Task {
             do {
-                let provider = ProviderRegistry.shared.provider(for: .claude)!
+                guard let provider = ProviderRegistry.shared.provider(for: .claude) else {
+                    await MainActor.run {
+                        validateError = "Provider not available. Please restart the app."
+                        validating = false
+                    }
+                    return
+                }
                 try await provider.validateCredentials()
                 let snapshot = try await provider.fetchUsage()
                 await MainActor.run {

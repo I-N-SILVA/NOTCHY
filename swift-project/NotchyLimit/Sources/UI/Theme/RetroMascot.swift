@@ -99,6 +99,8 @@ struct RetroMascot: View {
         .opacity(appeared ? 1 : 0)
         .onAppear { startAnimations() }
         .onChange(of: mood) { _ in updateMoodAnimations() }
+        .task(id: mood) { await blinkLoop() }
+        .task(id: mood) { await eyeScanLoop() }
     }
 
     // MARK: - Sub-views
@@ -163,8 +165,7 @@ struct RetroMascot: View {
         }
         startBreathing()
         startAntennaAnimations()
-        startBlinking()
-        startEyeScan()
+        // blink and eyeScan loops are driven by .task(id: mood) modifiers
     }
 
     private func startBreathing() {
@@ -192,55 +193,51 @@ struct RetroMascot: View {
         }
     }
 
-    private func startBlinking() {
-        let interval: TimeInterval = mood == .alarmed ? 1.2 : (mood == .worried ? 2.2 : 3.5)
-        func scheduleBlink() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + interval) {
+    // Cancellable blink loop — runs as a .task(id: mood) so it restarts cleanly on
+    // mood change without accumulating parallel chains like the old recursive approach.
+    private func blinkLoop() async {
+        let interval = UInt64((mood == .alarmed ? 1.2 : mood == .worried ? 2.2 : 3.5) * 1_000_000_000)
+        defer { withAnimation(.easeInOut(duration: 0.09)) { blink = false } }
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: interval)
+            if Task.isCancelled { break }
+            withAnimation(.easeInOut(duration: 0.09)) { blink = true }
+            try? await Task.sleep(nanoseconds: 110_000_000)
+            if Task.isCancelled { break }
+            withAnimation(.easeInOut(duration: 0.09)) { blink = false }
+            if mood == .alarmed {
+                try? await Task.sleep(nanoseconds: 180_000_000)
+                if Task.isCancelled { break }
                 withAnimation(.easeInOut(duration: 0.09)) { blink = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.11) {
-                    withAnimation(.easeInOut(duration: 0.09)) { blink = false }
-                    // Double-blink when alarmed
-                    if mood == .alarmed {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                            withAnimation(.easeInOut(duration: 0.09)) { blink = true }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.11) {
-                                withAnimation(.easeInOut(duration: 0.09)) { blink = false }
-                                scheduleBlink()
-                            }
-                        }
-                    } else {
-                        scheduleBlink()
-                    }
-                }
+                try? await Task.sleep(nanoseconds: 110_000_000)
+                if Task.isCancelled { break }
+                withAnimation(.easeInOut(duration: 0.09)) { blink = false }
             }
         }
-        scheduleBlink()
     }
 
-    private func startEyeScan() {
+    // Cancellable eye-scan loop — same pattern as blinkLoop.
+    private func eyeScanLoop() async {
         guard mood == .happy else { return }
-        func scheduleGlance() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double.random(in: 4...8)) {
-                withAnimation(.easeInOut(duration: 0.3)) { eyeShift = Bool.random() ? 1 : -1 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-                    withAnimation(.easeInOut(duration: 0.3)) { eyeShift = 0 }
-                    scheduleGlance()
-                }
-            }
+        defer { withAnimation(.easeInOut(duration: 0.3)) { eyeShift = 0 } }
+        while !Task.isCancelled {
+            let delay = UInt64(Double.random(in: 4...8) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delay)
+            if Task.isCancelled { break }
+            withAnimation(.easeInOut(duration: 0.3)) { eyeShift = Bool.random() ? 1 : -1 }
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            if Task.isCancelled { break }
+            withAnimation(.easeInOut(duration: 0.3)) { eyeShift = 0 }
         }
-        scheduleGlance()
     }
 
     private func updateMoodAnimations() {
-        // Re-trigger animations when mood changes
         breatheScale = 1.0
         antennaGlow  = false
         antennaSway  = 0
         startBreathing()
         startAntennaAnimations()
-        startBlinking()
-        if mood == .happy { startEyeScan() }
-        else { withAnimation(.easeInOut(duration: 0.3)) { eyeShift = 0 } }
+        // blink and eyeScan tasks restart automatically via .task(id: mood)
     }
 }
 

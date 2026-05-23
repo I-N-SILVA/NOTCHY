@@ -66,7 +66,7 @@ struct SettingsView: View {
                 .font(Theme.captionFont)
                 .foregroundColor(Theme.textSecondary)
             HStack(spacing: 8) {
-                ForEach([0.25, 0.5, 0.75, 0.9], id: \.self) { t in
+                ForEach([0.25, 0.5, 0.75, 0.9, 1.0], id: \.self) { t in
                     let on = appState.thresholds.contains(t)
                     Button("\(Int(t * 100))%") {
                         if on { appState.thresholds.removeAll(where: { $0 == t }) }

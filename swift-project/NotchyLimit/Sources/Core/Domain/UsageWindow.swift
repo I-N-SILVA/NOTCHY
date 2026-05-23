@@ -63,6 +63,21 @@ public struct UsageWindow: Codable, Hashable {
         return .healthy
     }
 
+    /// Whether the window is at or past its limit.
+    public var isAtLimit: Bool { percentUsed >= 1.0 }
+
+    /// Compact reset countdown for tight spaces, e.g. "1h 12m". Nil if no resetAt.
+    public func timeToResetShortString(now: Date = Date()) -> String? {
+        guard let resetAt = resetAt else { return nil }
+        let interval = resetAt.timeIntervalSince(now)
+        if interval <= 0 { return "soon" }
+        let totalMinutes = Int(interval / 60)
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours > 0 { return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h" }
+        return "\(max(minutes, 1))m"
+    }
+
     /// Human-readable countdown to reset, e.g. "Resets in 1h 12m".
     public func timeToResetString(now: Date = Date()) -> String? {
         guard let resetAt = resetAt else { return nil }

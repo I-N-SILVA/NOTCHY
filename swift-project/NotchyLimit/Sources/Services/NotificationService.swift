@@ -48,12 +48,16 @@ public final class NotificationService {
             var current = mark[key] ?? 0
 
             // Reset on window rollover: usage has fallen back below the lowest
-            // threshold, meaning the window cycled. Clear the mark so the next
-            // rising edge fires fresh notifications.
+            // threshold, meaning the window cycled. Clear the mark and notify
+            // so the user knows they can get back to work.
             if window.percentUsed < lowest && current > 0 {
                 mark[key] = 0
                 current = 0
                 dirty = true
+                fire(
+                    title: "\(providerId.displayName) \(label) reset",
+                    body: "\(label.capitalized) window reset — you're back to 0%."
+                )
             }
 
             // Find the highest threshold the current usage has crossed.
@@ -64,10 +68,10 @@ public final class NotificationService {
 
             mark[key] = highest
             dirty = true
-            fire(
-                title: "\(providerId.displayName) \(label) \(Int(highest * 100))% used",
-                body: usageBody(window: window, label: label)
-            )
+            let title = highest >= 1.0
+                ? "\(providerId.displayName) \(label) limit reached"
+                : "\(providerId.displayName) \(label) \(Int(highest * 100))% used"
+            fire(title: title, body: usageBody(window: window, label: label))
         }
 
         if dirty { saveMark() }
@@ -90,9 +94,12 @@ public final class NotificationService {
     // MARK: - Delivery
 
     private func usageBody(window: UsageWindow, label: String) -> String {
+        if window.isAtLimit {
+            return window.timeToResetString().map { "Blocked. \($0)." } ?? "Session limit reached."
+        }
         let pct = Int(window.percentUsed * 100)
         if let reset = window.timeToResetString() {
-            return "\(pct)% of \(label) limit. Resets \(reset)."
+            return "\(pct)% of \(label) limit. \(reset)."
         }
         return "\(pct)% of your \(label) limit used."
     }

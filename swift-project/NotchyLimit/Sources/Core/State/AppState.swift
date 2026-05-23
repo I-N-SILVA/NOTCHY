@@ -20,7 +20,7 @@ public final class AppState: ObservableObject {
     // Settings
     @Published public var pollIntervalSeconds: TimeInterval = 300
     @Published public var notificationsEnabled: Bool = true
-    @Published public var thresholds: [Double] = [0.25, 0.5, 0.75, 0.9]
+    @Published public var thresholds: [Double] = [0.25, 0.5, 0.75, 0.9, 1.0]
     @Published public var launchAtLogin: Bool = false
 
     // Convenience accessors used by views
@@ -34,6 +34,15 @@ public final class AppState: ObservableObject {
 
     public var sessionResetString: String? {
         latestSnapshot?.primaryWindow.timeToResetString()
+    }
+
+    public var isAtSessionLimit: Bool {
+        sessionPercent >= 1.0
+    }
+
+    /// Compact reset countdown for the pill, e.g. "1h 12m".
+    public var sessionResetShortString: String? {
+        latestSnapshot?.primaryWindow.timeToResetShortString()
     }
 
     public init() {}

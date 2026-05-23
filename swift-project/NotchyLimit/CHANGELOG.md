@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- "Session limit reached" notification fires at 100% usage (separate from the 90% warning)
+- "Session reset" notification when quota rolls over so users know immediately when they can resume
+- 100% added to default notification thresholds and visible in Settings
+- Compact pill shows reset countdown (e.g. "1h 15m") when session is blocked, instead of "100%"
+- `isAtLimit` and `timeToResetShortString()` helpers on `UsageWindow`
+
+### Fixed
+- `OnboardingView` crashed if the Claude provider was not registered; replaced force-unwrap with `guard let`
+- `RetroMascot` blink and eye-scan animations accumulated parallel `DispatchQueue` chains across mood changes; replaced with cancellable `Task`-based loops via `.task(id: mood)`
+- `SessionCard` counter animation stacked multiple simultaneous chains when usage updated rapidly; added epoch cancellation
+
 ## [0.1.0] - 2026-05-20
 
 ### Added

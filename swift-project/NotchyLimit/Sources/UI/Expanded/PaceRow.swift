@@ -18,6 +18,7 @@ struct PaceRow: View {
     }
 
     private var paceLabel: String {
+        if appState.isAtSessionLimit { return "Session blocked — awaiting reset." }
         switch appState.sessionStatus {
         case .critical: return "Heavy usage — consider pausing."
         case .warning:  return "Slightly above pace."
