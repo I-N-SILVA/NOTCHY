@@ -55,9 +55,24 @@ public final class UsageService {
     /// Returns the next wait interval, doubling on consecutive errors (cap: 3600s).
     /// Rate-limit (429) forces at least 300s regardless of the configured interval.
     private func backoffInterval() -> TimeInterval {
+        Self.backoffInterval(consecutiveErrors: consecutiveErrors,
+                             intervalSeconds: intervalSeconds)
+    }
+
+    /// Pure backoff math, extracted for unit testing.
+    /// Doubles the base interval per consecutive error (exponent capped at 6),
+    /// then clamps the result to a 3600s ceiling.
+    static func backoffInterval(consecutiveErrors: Int,
+                                intervalSeconds: TimeInterval) -> TimeInterval {
         guard consecutiveErrors > 0 else { return intervalSeconds }
         let backoff = intervalSeconds * pow(2.0, Double(min(consecutiveErrors, 6)))
         return min(backoff, 3600)
+    }
+
+    /// Number of error "steps" required so that `backoffInterval` waits at least
+    /// 300s — used to floor the backoff after a 429. Pure, for unit testing.
+    static func rateLimitBackoffSteps(intervalSeconds: TimeInterval) -> Int {
+        Int(ceil(log2(300 / intervalSeconds + 1)))
     }
 
     // MARK: - Fetch
@@ -75,7 +90,8 @@ public final class UsageService {
             consecutiveErrors += 1
             if case .rateLimited = error {
                 // Ensure backoff is at least 300s on rate limit.
-                consecutiveErrors = max(consecutiveErrors, Int(ceil(log2(300 / intervalSeconds + 1))))
+                consecutiveErrors = max(consecutiveErrors,
+                                        Self.rateLimitBackoffSteps(intervalSeconds: intervalSeconds))
             }
             await publish(error: error)
         } catch {

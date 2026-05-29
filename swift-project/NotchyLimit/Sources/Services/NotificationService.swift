@@ -20,9 +20,25 @@ import AppKit
 /// window do not re-fire already-seen thresholds.
 public final class NotificationService {
     public static let shared = NotificationService()
-    private init() { loadMark() }
 
     private let defaultsKey = "com.notchylimit.NotificationService.highWaterMark"
+
+    /// Where the high-water mark is persisted. Injectable so tests can use an
+    /// isolated suite instead of the shared `.standard` domain.
+    private let defaults: UserDefaults
+
+    /// Sink that actually delivers a notification. Injectable so tests can
+    /// capture fired notifications instead of spawning a real banner window.
+    private let emit: (_ title: String, _ body: String) -> Void
+
+    init(defaults: UserDefaults = .standard,
+         emit: @escaping (_ title: String, _ body: String) -> Void = { title, body in
+             NotificationBannerController.shared.show(title: title, body: body)
+         }) {
+        self.defaults = defaults
+        self.emit = emit
+        loadMark()
+    }
 
     // "claude:session" → highest threshold already notified (0.0 = none)
     private var mark: [String: Double] = [:]
@@ -88,11 +104,11 @@ public final class NotificationService {
     // MARK: - Persistence
 
     private func saveMark() {
-        UserDefaults.standard.set(mark, forKey: defaultsKey)
+        defaults.set(mark, forKey: defaultsKey)
     }
 
     private func loadMark() {
-        mark = UserDefaults.standard.dictionary(forKey: defaultsKey) as? [String: Double] ?? [:]
+        mark = defaults.dictionary(forKey: defaultsKey) as? [String: Double] ?? [:]
     }
 
     // MARK: - Delivery
@@ -109,6 +125,6 @@ public final class NotificationService {
     }
 
     private func fire(title: String, body: String) {
-        NotificationBannerController.shared.show(title: title, body: body)
+        emit(title, body)
     }
 }

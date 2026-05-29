@@ -3,9 +3,14 @@ import Foundation
 /// Provider-credential storage. Backed by macOS Keychain.
 public final class AuthService {
     public static let shared = AuthService()
-    private init() {}
 
-    private let store = KeychainStore(service: "com.notchylimit.NotchyLimit")
+    private let store: KeychainStore
+
+    /// `store` is injectable so tests can supply an isolated keychain service
+    /// name instead of clobbering the real `com.notchylimit.NotchyLimit` items.
+    init(store: KeychainStore = KeychainStore(service: "com.notchylimit.NotchyLimit")) {
+        self.store = store
+    }
 
     // MARK: - Generic
 
