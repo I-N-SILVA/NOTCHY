@@ -9,9 +9,11 @@ final class ClaudeProvider: UsageProvider {
     let isAvailable: Bool = true
 
     private let session: URLSession
+    private let auth: AuthService
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared, auth: AuthService = .shared) {
         self.session = session
+        self.auth = auth
     }
 
     // MARK: - UsageProvider
@@ -38,7 +40,7 @@ final class ClaudeProvider: UsageProvider {
     // MARK: - Internals
 
     private func currentCookie() throws -> String {
-        guard let cred: ClaudeCredential = AuthService.shared.loadCredential(for: .claude),
+        guard let cred: ClaudeCredential = auth.loadCredential(for: .claude),
               !cred.cookie.isEmpty else {
             throw ProviderError.missingCredentials
         }

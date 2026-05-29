@@ -63,3 +63,14 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  NotchyLimit:
+    build:
+      targets:
+        NotchyLimit: all
+        NotchyLimitTests: [test]
+    test:
+      gatherCoverageData: true
+      targets:
+        - NotchyLimitTests
