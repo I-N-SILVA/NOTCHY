@@ -130,12 +130,33 @@ sips -z 512  512  "$ASSETS_DIR/AppIcon-512.png"  --out "$ICONSET/icon_512x512.pn
 sips -z 1024 1024 "$ASSETS_DIR/AppIcon-1024.png" --out "$ICONSET/icon_512x512@2x.png" >/dev/null
 iconutil -c icns "$ICONSET" -o "$APP_CONTENTS/Resources/AppIcon.icns"
 
-# Strip quarantine attribute so macOS doesn't block launch
+# Ad-hoc sign the whole bundle. On Apple Silicon an app must carry at least an
+# ad-hoc signature to launch at all, and signing here (after the Info.plist and
+# .icns were added above) keeps the signature consistent with the final bundle.
+# NOTE: ad-hoc signing is NOT notarization — see the "is damaged" note below.
+echo "==> Ad-hoc signing the app bundle"
+codesign --force --deep --sign - "$APP_BUNDLE"
+if codesign --verify --deep --strict "$APP_BUNDLE" 2>/dev/null; then
+  echo "    Ad-hoc signature OK"
+else
+  echo "    WARNING: ad-hoc signature could not be verified"
+fi
+
+# Strip quarantine attribute so macOS doesn't block launch on THIS machine.
 xattr -cr "$APP_BUNDLE" 2>/dev/null || true
 
 echo ""
-echo "==> Built (unsigned, local use only): $APP_BUNDLE"
+echo "==> Built (ad-hoc signed, local use only): $APP_BUNDLE"
 echo "    Run with: open $APP_BUNDLE"
 echo ""
-echo "  This binary is unsigned. Do not share or distribute it."
-echo "  For distribution use: USE_XCODEBUILD=1 bash scripts/build.sh"
+echo "  This build is ad-hoc signed but NOT notarized. It runs fine on the"
+echo "  machine that built it, but if you send it to someone else macOS will"
+echo "  quarantine the download and may say \"NotchyLimit is damaged\"."
+echo "  The recipient can clear that in one command:"
+echo ""
+echo "      xattr -dr com.apple.quarantine /Applications/NotchyLimit.app"
+echo ""
+echo "  (or right-click the app → Open, or System Settings → Privacy &"
+echo "  Security → Open Anyway). See docs/BUILDING.md → \"Sharing a build\"."
+echo "  For a download that just works, notarize via USE_XCODEBUILD=1 +"
+echo "  scripts/sign_and_notarize.sh (requires a paid Apple Developer ID)."

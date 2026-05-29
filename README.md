@@ -98,6 +98,36 @@ xcodegen generate
 open NotchyLimit.xcodeproj   # then press Cmd+R
 ```
 
+### Option C: Someone shared a build with you
+
+If a friend sent you a prebuilt `NotchyLimit.app` (or a `.dmg`/`.zip`), macOS
+will quarantine the download and may refuse to open it — most often with:
+
+> **“NotchyLimit is damaged and can’t be opened. You should move it to the Trash.”**
+
+The app isn’t actually damaged. It’s just **not notarized**, because
+notarization requires a paid Apple Developer account ($99/yr). Pick whichever
+fix you prefer:
+
+**Easiest — double-click the helper.** Move `NotchyLimit.app` to your
+`Applications` folder, then double-click
+[`scripts/remove_quarantine.command`](swift-project/NotchyLimit/scripts/remove_quarantine.command).
+It clears the quarantine flag and nothing else.
+
+**One Terminal command.** Move the app to `Applications`, open Terminal, and run:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/NotchyLimit.app
+```
+
+**No Terminal at all.** Double-click the app so it gets blocked, then open
+ → **System Settings → Privacy & Security**, scroll to the bottom, and click
+**“Open Anyway.”** (On older macOS: right-click the app → **Open** → **Open**.)
+
+After any of these, the app opens normally from then on. If you’d rather not
+trust a download, build it yourself with **Option A** — locally-built apps are
+never quarantined.
+
 ---
 
 ## First launch: getting your session token
