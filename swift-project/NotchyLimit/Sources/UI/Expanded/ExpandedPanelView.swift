@@ -46,6 +46,18 @@ struct ExpandedPanelView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     HeaderRow(appState: appState, controller: controller)
+
+                    // Provider switcher — only shown when 2+ providers are active.
+                    if appState.isMultiProvider {
+                        ProviderSwitcherRow(appState: appState)
+                    }
+
+                    // Outage banner for the active provider, if any.
+                    if let incident = appState.activeIncident {
+                        IncidentBanner(providerName: appState.activeProviderId.displayName,
+                                       incident: incident)
+                    }
+
                     SessionCard(appState: appState)
                     PaceRow(appState: appState)
 

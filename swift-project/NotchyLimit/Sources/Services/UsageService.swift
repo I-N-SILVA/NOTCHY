@@ -1,87 +1,114 @@
 import Foundation
 import Combine
 
-/// Owns the polling loop. Single-instance, holds no UI state.
-/// Snapshots/errors are emitted via publishers consumed by `UsageCoordinator`.
+/// Owns the polling loop for one or more providers.
 ///
-/// Failure backoff: consecutive errors double the wait (capped at 1 hour).
-/// A 429 rate-limit forces a minimum 5-minute backoff regardless of interval.
+/// Each enabled provider gets its own independent `Task` so a slow or rate-limited
+/// provider doesn't block others. Snapshots and errors are emitted via publishers
+/// consumed by `UsageCoordinator`.
+///
+/// Failure backoff: consecutive errors double the wait interval (cap: 1 hour).
+/// A 429 rate-limit forces at least 5-minute backoff regardless of the configured interval.
 public final class UsageService {
     public static let shared = UsageService()
     private init() {}
 
     public let snapshotPublisher = PassthroughSubject<ServiceUsageSnapshot, Never>()
-    public let errorPublisher    = PassthroughSubject<ProviderError, Never>()
+    /// Emits `(providerId, error)` tuples so the coordinator can react per provider.
+    public let errorPublisher    = PassthroughSubject<(ProviderId, ProviderError), Never>()
 
-    private var pollTask: Task<Void, Never>?
+    private var pollTasks: [ProviderId: Task<Void, Never>] = [:]
     private var intervalSeconds: TimeInterval = 300
-    private var activeProviderId: ProviderId = .claude
+    private var consecutiveErrors: [ProviderId: Int] = [:]
 
-    private var consecutiveErrors: Int = 0
+    // MARK: - Lifecycle
 
-    public func start(providerId: ProviderId, interval: TimeInterval) {
-        stop()
-        activeProviderId = providerId
+    /// Start (or restart) polling for all given providers.
+    public func start(providers: [ProviderId], interval: TimeInterval) {
+        stopAll()
         intervalSeconds = max(60, interval)
-        consecutiveErrors = 0
-        pollTask = Task { [weak self] in
-            guard let self = self else { return }
-            await self.fetchOnce()
-            while !Task.isCancelled {
-                let wait = self.backoffInterval()
-                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
-                if Task.isCancelled { break }
-                await self.fetchOnce()
-            }
+        for p in providers where p.isAvailable { startProvider(p) }
+    }
+
+    /// Convenience for single-provider (backward-compat).
+    public func start(providerId: ProviderId, interval: TimeInterval) {
+        start(providers: [providerId], interval: interval)
+    }
+
+    public func stopAll() {
+        pollTasks.values.forEach { $0.cancel() }
+        pollTasks.removeAll()
+        consecutiveErrors.removeAll()
+    }
+
+    public func stop(providerId: ProviderId) {
+        pollTasks[providerId]?.cancel()
+        pollTasks.removeValue(forKey: providerId)
+        consecutiveErrors.removeValue(forKey: providerId)
+    }
+
+    public func refreshNow(providerId: ProviderId? = nil) {
+        if let id = providerId {
+            Task { await fetchOnce(providerId: id) }
+        } else {
+            for id in pollTasks.keys { Task { await fetchOnce(providerId: id) } }
         }
     }
 
-    public func stop() {
-        pollTask?.cancel()
-        pollTask = nil
-    }
-
-    public func refreshNow() {
-        Task { await fetchOnce() }
-    }
+    /// Refresh all active providers.
+    public func refreshNow() { refreshNow(providerId: nil) }
 
     public func updateInterval(_ seconds: TimeInterval) {
         intervalSeconds = max(60, seconds)
-        start(providerId: activeProviderId, interval: intervalSeconds)
+        let active = Array(pollTasks.keys)
+        start(providers: active, interval: intervalSeconds)
     }
 
-    // MARK: - Backoff
+    // MARK: - Per-provider polling
 
-    /// Returns the next wait interval, doubling on consecutive errors (cap: 3600s).
-    /// Rate-limit (429) forces at least 300s regardless of the configured interval.
-    private func backoffInterval() -> TimeInterval {
-        guard consecutiveErrors > 0 else { return intervalSeconds }
-        let backoff = intervalSeconds * pow(2.0, Double(min(consecutiveErrors, 6)))
+    private func startProvider(_ providerId: ProviderId) {
+        consecutiveErrors[providerId] = 0
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.fetchOnce(providerId: providerId)
+            while !Task.isCancelled {
+                let wait = self.backoffInterval(for: providerId)
+                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                if Task.isCancelled { break }
+                await self.fetchOnce(providerId: providerId)
+            }
+        }
+        pollTasks[providerId] = task
+    }
+
+    private func backoffInterval(for providerId: ProviderId) -> TimeInterval {
+        let errs = consecutiveErrors[providerId] ?? 0
+        guard errs > 0 else { return intervalSeconds }
+        let backoff = intervalSeconds * pow(2.0, Double(min(errs, 6)))
         return min(backoff, 3600)
     }
 
-    // MARK: - Fetch
-
-    private func fetchOnce() async {
-        guard let provider = ProviderRegistry.shared.provider(for: activeProviderId) else {
-            await publish(error: .unknown("No provider registered for \(activeProviderId.rawValue)"))
+    private func fetchOnce(providerId: ProviderId) async {
+        guard let provider = ProviderRegistry.shared.provider(for: providerId) else {
+            await publish(error: .unknown("No provider registered for \(providerId.rawValue)"), id: providerId)
             return
         }
         do {
             let snapshot = try await provider.fetchUsage()
-            consecutiveErrors = 0
+            consecutiveErrors[providerId] = 0
             await publish(snapshot: snapshot)
         } catch let error as ProviderError {
-            consecutiveErrors += 1
+            consecutiveErrors[providerId, default: 0] += 1
             if case .rateLimited = error {
-                // Ensure backoff is at least 300s on rate limit.
-                consecutiveErrors = max(consecutiveErrors, Int(ceil(log2(300 / intervalSeconds + 1))))
+                consecutiveErrors[providerId] = max(
+                    consecutiveErrors[providerId]!,
+                    Int(ceil(log2(300 / intervalSeconds + 1)))
+                )
             }
-            await publish(error: error)
+            await publish(error: error, id: providerId)
         } catch {
-            consecutiveErrors += 1
-            // localizedDescription may contain system paths or request URLs — discard it.
-            await publish(error: .unknown("unexpected"))
+            consecutiveErrors[providerId, default: 0] += 1
+            await publish(error: .unknown("unexpected"), id: providerId)
         }
     }
 
@@ -91,7 +118,7 @@ public final class UsageService {
     }
 
     @MainActor
-    private func publish(error: ProviderError) {
-        errorPublisher.send(error)
+    private func publish(error: ProviderError, id: ProviderId) {
+        errorPublisher.send((id, error))
     }
 }

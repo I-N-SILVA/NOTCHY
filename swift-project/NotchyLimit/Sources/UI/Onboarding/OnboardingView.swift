@@ -1,16 +1,27 @@
 import SwiftUI
 import AppKit
 
-/// Five-step onboarding: Welcome → Provider → Cookie → Validate → Notifications.
+/// Multi-step onboarding.
+///
+/// Flow adapts based on what's available:
+///   - Claude CLI credentials detected → skips cookie step, uses OAuth automatically.
+///   - User selects OpenAI → asks for API key instead of cookie.
+///   - User selects Claude without CLI → asks for session cookie (same as v0.1).
 struct OnboardingView: View {
     @ObservedObject var appState: AppState
-    @Environment(\.dismiss) private var dismiss
+    private func close() { appState.showOnboarding = false }
+
     @State private var step: Step = .welcome
-    @State private var cookieInput: String = ""
+    @State private var selectedProvider: ProviderId = .claude
+    @State private var credentialInput: String = ""
     @State private var validating: Bool = false
     @State private var validateError: String?
 
-    enum Step: Int, CaseIterable { case welcome, provider, cookie, validate, notifications }
+    enum Step: Int, CaseIterable {
+        case welcome, provider, credential, validate, notifications
+    }
+
+    // MARK: - Body
 
     var body: some View {
         ZStack {
@@ -18,21 +29,21 @@ struct OnboardingView: View {
             VStack(spacing: 18) {
                 HStack {
                     RetroMascot(size: 32)
-                    Text("Welcome to Notchy Limit")
+                    Text("Welcome to Notchy")
                         .font(Theme.displayFont)
                         .foregroundColor(Theme.textPrimary)
                     Spacer()
-                    Button("Skip") { dismiss() }
+                    Button("Skip") { close() }
                         .buttonStyle(.borderless)
                         .foregroundColor(Theme.textSecondary)
                 }
                 progressDots
                 Group {
                     switch step {
-                    case .welcome: welcomeStep
-                    case .provider: providerStep
-                    case .cookie: cookieStep
-                    case .validate: validateStep
+                    case .welcome:       welcomeStep
+                    case .provider:      providerStep
+                    case .credential:    credentialStep
+                    case .validate:      validateStep
                     case .notifications: notificationsStep
                     }
                 }
@@ -43,6 +54,8 @@ struct OnboardingView: View {
             .padding(20)
         }
     }
+
+    // MARK: - Step views
 
     private var progressDots: some View {
         HStack(spacing: 6) {
@@ -57,50 +70,14 @@ struct OnboardingView: View {
     private var welcomeStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("See your Claude limits at a glance.")
+                Text("See your AI limits at a glance.")
                     .font(.title3.weight(.semibold))
                     .foregroundColor(Theme.textPrimary)
-                Text("A tiny pill lives in your notch. Hover for details. Everything stays on your Mac.")
+                Text("A tiny pill lives in your notch or menu bar. Hover for details. Everything stays on your Mac.")
                     .font(Theme.bodyFont)
                     .foregroundColor(Theme.textSecondary)
             }
-
-            // Live preview of the compact pill so users know exactly what they'll see
-            VStack(spacing: 8) {
-                Text("This will live in your notch:")
-                    .font(Theme.captionFont)
-                    .foregroundColor(Theme.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-
-                HStack(spacing: 0) {
-                    // Simulated notch hardware (black bar above)
-                    VStack(spacing: 0) {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black)
-                            .frame(width: 130, height: 22)
-                            .overlay(
-                                Text("camera")
-                                    .font(.system(size: 7))
-                                    .foregroundColor(Color.white.opacity(0.15))
-                            )
-                        // The pill preview extending below
-                        OnboardingPillPreview()
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-
-                Text("Hover it to expand. Click to pin.")
-                    .font(Theme.captionFont)
-                    .foregroundColor(Theme.textSecondary.opacity(0.6))
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Theme.surface)
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Theme.stroke))
-            )
+            pillPreviewCard
         }
     }
 
@@ -109,44 +86,339 @@ struct OnboardingView: View {
             Text("Choose a provider")
                 .font(.title3.weight(.semibold))
                 .foregroundColor(Theme.textPrimary)
-            ForEach(ProviderId.allCases, id: \.self) { p in
-                HStack {
-                    Text(p.displayName).foregroundColor(Theme.textPrimary)
-                    Spacer()
-                    Text(p.isAvailable ? "Available" : "Coming soon")
-                        .font(Theme.captionFont)
-                        .foregroundColor(p.isAvailable ? Theme.statusHealthy : Theme.textSecondary)
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(ProviderId.allCases, id: \.self) { p in
+                        providerRow(p)
+                    }
                 }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
-                .opacity(p.isAvailable ? 1 : 0.6)
+            }
+            .frame(maxHeight: 280)
+        }
+    }
+
+    @ViewBuilder
+    private func providerRow(_ p: ProviderId) -> some View {
+        let isSelected = selectedProvider == p
+        Button {
+            if p.isAvailable { selectedProvider = p }
+        } label: {
+            HStack {
+                Image(systemName: p.iconSymbol)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(isSelected ? Theme.accentWarm : Theme.textSecondary)
+                    .frame(width: 22)
+                Text(p.displayName)
+                    .foregroundColor(Theme.textPrimary)
+                Spacer()
+                if usesDetectedOAuth(p) {
+                    Text("CLI detected")
+                        .font(Theme.captionFont)
+                        .foregroundColor(Theme.statusHealthy)
+                } else {
+                    Text(p.isAvailable ? (isSelected ? "Selected" : "") : "Coming soon")
+                        .font(Theme.captionFont)
+                        .foregroundColor(p.isAvailable ? Theme.textSecondary : Theme.textSecondary.opacity(0.5))
+                }
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(Theme.accentWarm)
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Theme.surfaceElevated : Theme.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(isSelected ? Theme.accentWarm.opacity(0.35) : Theme.stroke, lineWidth: 0.75)
+                    )
+            )
+        }
+        .buttonStyle(.borderless)
+        .opacity(p.isAvailable ? 1.0 : 0.5)
+        .disabled(!p.isAvailable)
+    }
+
+    /// True when the provider is authenticated from a CLI-written OAuth file
+    /// that's present on disk — no credential entry needed.
+    private func usesDetectedOAuth(_ p: ProviderId) -> Bool {
+        p.usesCLIOAuth && AuthService.shared.cliOAuthAvailable(for: p)
+    }
+
+    /// True when this step shows a key/cookie text field the user must fill.
+    private func needsTextInput(_ p: ProviderId) -> Bool {
+        if usesDetectedOAuth(p) { return false }
+        if p == .codex { return false }   // login-only, no manual entry
+        return true
+    }
+
+    @ViewBuilder
+    private var credentialStep: some View {
+        switch selectedProvider {
+        case .claude:
+            if usesDetectedOAuth(.claude) { oauthDetectedStep(.claude) }
+            else { claudeCookieStep }
+        case .codex:
+            if usesDetectedOAuth(.codex) { oauthDetectedStep(.codex) }
+            else { codexLoginStep }
+        case .gemini:
+            if usesDetectedOAuth(.gemini) { oauthDetectedStep(.gemini) }
+            else { geminiKeyStep }
+        case .openai:
+            openAIKeyStep
+        case .openrouter:
+            apiKeyStep(
+                title: "Paste your OpenRouter API key",
+                hint: "Find it at openrouter.ai → Keys.",
+                note: "Notchy reads your credits used vs. credits purchased. The key is stored in the macOS Keychain and only ever sent to openrouter.ai.",
+                placeholder: "sk-or-..."
+            )
+        case .perplexity:
+            perplexityKeyStep
+        case .deepseek:
+            apiKeyStep(
+                title: "Paste your DeepSeek API key",
+                hint: "Find it at platform.deepseek.com → API keys.",
+                note: "DeepSeek reports a remaining credit balance (not a usage %), so Notchy shows your balance. The key is stored in the macOS Keychain and only ever sent to api.deepseek.com.",
+                placeholder: "sk-..."
+            )
+        case .elevenlabs:
+            apiKeyStep(
+                title: "Paste your ElevenLabs API key",
+                hint: "Find it at elevenlabs.io → Profile → API key.",
+                note: "Notchy reads your monthly character usage vs. your plan limit. The key is stored in the macOS Keychain and only ever sent to api.elevenlabs.io.",
+                placeholder: "your-xi-api-key"
+            )
+        }
+    }
+
+    /// Detected-CLI-credential confirmation, shared by Claude / Codex / Gemini.
+    @ViewBuilder
+    private func oauthDetectedStep(_ p: ProviderId) -> some View {
+        let info: (tool: String, path: String, scope: String) = {
+            switch p {
+            case .codex:  return ("Codex CLI", "~/.codex/auth.json", "Reads your ChatGPT-plan session (5h) + weekly limits")
+            case .gemini: return ("Gemini CLI", "~/.gemini/oauth_creds.json", "Reads your Code Assist per-model quota")
+            default:      return ("Claude CLI", "~/.claude/credentials.json", "Scoped OAuth token — not your full session cookie")
+            }
+        }()
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(Theme.statusHealthy)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(info.tool) detected")
+                        .font(.title3.weight(.semibold))
+                        .foregroundColor(Theme.textPrimary)
+                    Text("Notchy will use your existing CLI credentials.")
+                        .font(Theme.captionFont)
+                        .foregroundColor(Theme.textSecondary)
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Theme.statusHealthy.opacity(0.08))
+                    .overlay(RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(Theme.statusHealthy.opacity(0.25)))
+            )
+
+            VStack(alignment: .leading, spacing: 6) {
+                featureRow("shield.fill", info.scope, Theme.statusHealthy)
+                featureRow("key.fill", "Token lives in \(info.path)", Theme.textSecondary)
+                featureRow("arrow.clockwise", "Auto-refreshed — no action needed", Theme.textSecondary)
             }
         }
     }
 
-    private var cookieStep: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Paste your claude.ai cookie")
+    /// Shown when Codex isn't logged in yet — there's no key to paste.
+    private var codexLoginStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Sign in with the Codex CLI")
                 .font(.title3.weight(.semibold))
                 .foregroundColor(Theme.textPrimary)
-            Text("In claude.ai, open DevTools (⌘⌥I), go to Network, find the 'usage' request, and copy the full Cookie header.")
+            Text("Notchy reads your ChatGPT-plan usage (5-hour + weekly windows) from the token the Codex CLI stores locally — no key to paste.")
                 .font(Theme.captionFont)
                 .foregroundColor(Theme.textSecondary)
-            SecureCookieEditor(text: $cookieInput)
-                .frame(height: 110)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
+            VStack(alignment: .leading, spacing: 6) {
+                featureRow("1.circle.fill", "Install: npm i -g @openai/codex", Theme.textSecondary)
+                featureRow("2.circle.fill", "Run: codex login (sign in with ChatGPT)", Theme.textSecondary)
+                featureRow("3.circle.fill", "Come back and continue", Theme.statusHealthy)
+            }
             if let err = validateError {
                 Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
             }
         }
     }
 
-    private var validateStep: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(validating ? "Validating cookie…" : "Cookie validated ✓")
+    private var claudeCookieStep: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Paste your claude.ai session cookie")
                 .font(.title3.weight(.semibold))
                 .foregroundColor(Theme.textPrimary)
-            Text("We're checking that the cookie can reach the Claude usage endpoint.")
+
+            // Security disclosure — honest about the tradeoff
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(Theme.statusWarning)
+                    .font(.system(size: 12))
+                    .padding(.top, 1)
+                Text("This is a full browser session cookie with complete account access. It stays device-only in the macOS Keychain and is never sent anywhere except directly to claude.ai for usage requests. Install Claude CLI to use a safer, scoped token instead.")
+                    .font(Theme.captionFont)
+                    .foregroundColor(Theme.textSecondary)
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Theme.statusWarning.opacity(0.06))
+                    .overlay(RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Theme.statusWarning.opacity(0.20)))
+            )
+
+            Text("In claude.ai, open DevTools (⌘⌥I) → Network → find 'usage' request → copy the Cookie header.")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+
+            SecureCookieEditor(text: $credentialInput)
+                .frame(height: 90)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
+
+            if let err = validateError {
+                Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
+            }
+        }
+    }
+
+    private var openAIKeyStep: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Paste your OpenAI API key")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(Theme.textPrimary)
+            Text("Find it at platform.openai.com → API keys. Notchy uses it to read your monthly billing usage vs. your configured spend limit.")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "info.circle.fill")
+                    .foregroundColor(Theme.accentCool)
+                    .font(.system(size: 12))
+                    .padding(.top, 1)
+                Text("The key is stored in the macOS Keychain and only ever sent to api.openai.com. Your key must have billing read access.")
+                    .font(Theme.captionFont)
+                    .foregroundColor(Theme.textSecondary)
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Theme.accentCool.opacity(0.06))
+                    .overlay(RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Theme.accentCool.opacity(0.20)))
+            )
+
+            SecureCookieEditor(text: $credentialInput, placeholder: "sk-...")
+                .frame(height: 60)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
+
+            if let err = validateError {
+                Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
+            }
+        }
+    }
+
+    private var geminiKeyStep: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Paste your Gemini API key")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(Theme.textPrimary)
+            Text("Get one free at aistudio.google.com → API keys.")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+
+            statusOnlyNote("Google's Gemini API exposes no usage endpoint, so Notchy shows a Connected status — not a quota %. The key is stored in the macOS Keychain and only ever sent to Google.")
+
+            SecureCookieEditor(text: $credentialInput, placeholder: "AIza...")
+                .frame(height: 60)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
+
+            if let err = validateError {
+                Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
+            }
+        }
+    }
+
+    private var perplexityKeyStep: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Paste your Perplexity API key")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(Theme.textPrimary)
+            Text("Find it at perplexity.ai → Settings → API.")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+
+            statusOnlyNote("Perplexity has no usage endpoint, so Notchy shows a Connected status — not a spend %. The key is stored in the macOS Keychain and only ever sent to api.perplexity.ai.")
+
+            SecureCookieEditor(text: $credentialInput, placeholder: "pplx-...")
+                .frame(height: 60)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
+
+            if let err = validateError {
+                Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
+            }
+        }
+    }
+
+    /// Generic API-key entry step for straightforward Bearer/header-key providers.
+    @ViewBuilder
+    private func apiKeyStep(title: String, hint: String, note: String, placeholder: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.title3.weight(.semibold))
+                .foregroundColor(Theme.textPrimary)
+            Text(hint)
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+
+            statusOnlyNote(note)
+
+            SecureCookieEditor(text: $credentialInput, placeholder: placeholder)
+                .frame(height: 60)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface))
+
+            if let err = validateError {
+                Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
+            }
+        }
+    }
+
+    /// Honest disclosure used by providers that can only report connectivity.
+    @ViewBuilder
+    private func statusOnlyNote(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "info.circle.fill")
+                .foregroundColor(Theme.accentCool)
+                .font(.system(size: 12))
+                .padding(.top, 1)
+            Text(text)
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Theme.accentCool.opacity(0.06))
+                .overlay(RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Theme.accentCool.opacity(0.20)))
+        )
+    }
+
+    private var validateStep: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(validating ? "Validating…" : "Credentials validated ✓")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(Theme.textPrimary)
+            Text("Checking that the credentials can reach \(selectedProvider.displayName)'s usage endpoint.")
                 .font(Theme.captionFont)
                 .foregroundColor(Theme.textSecondary)
             if let err = validateError {
@@ -169,6 +441,8 @@ struct OnboardingView: View {
         }
     }
 
+    // MARK: - Navigation
+
     private var navButtons: some View {
         HStack {
             if step != .welcome {
@@ -178,7 +452,7 @@ struct OnboardingView: View {
             Button(primaryLabel) { goNext() }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return)
-                .disabled(step == .cookie && cookieInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(nextDisabled)
         }
     }
 
@@ -186,9 +460,21 @@ struct OnboardingView: View {
         switch step {
         case .welcome:        return "Get started"
         case .provider:       return "Continue"
-        case .cookie:         return "Validate"
+        case .credential:
+            return usesDetectedOAuth(selectedProvider) ? "Continue" : "Validate"
         case .validate:       return validating ? "…" : "Continue"
         case .notifications:  return "Finish"
+        }
+    }
+
+    private var nextDisabled: Bool {
+        switch step {
+        case .credential:
+            return needsTextInput(selectedProvider) && credentialInput.trimmingCharacters(in: .whitespaces).isEmpty
+        case .validate:
+            return validating
+        default:
+            return false
         }
     }
 
@@ -198,12 +484,12 @@ struct OnboardingView: View {
 
     private func goNext() {
         switch step {
-        case .cookie:
+        case .credential:
             startValidation()
         case .validate:
             if !validating && validateError == nil { step = .notifications }
         case .notifications:
-            dismiss()
+            close()
         default:
             if let next = Step(rawValue: step.rawValue + 1) { step = next }
         }
@@ -212,18 +498,23 @@ struct OnboardingView: View {
     private func startValidation() {
         validateError = nil
         validating = true
-        let credential = ClaudeCredential(cookie: cookieInput.trimmingCharacters(in: .whitespacesAndNewlines))
-        if let err = AuthService.shared.saveClaudeCredential(credential) {
-            validateError = err
-            validating = false
-            return
+
+        // Save credential before validating (only providers with a text field).
+        if needsTextInput(selectedProvider) {
+            if let saveError = saveCredential() {
+                validateError = saveError
+                validating = false
+                return
+            }
         }
+
         step = .validate
+
         Task {
             do {
-                guard let provider = ProviderRegistry.shared.provider(for: .claude) else {
+                guard let provider = ProviderRegistry.shared.provider(for: selectedProvider) else {
                     await MainActor.run {
-                        validateError = "Provider not available. Please restart the app."
+                        validateError = "Provider not available. Restart the app."
                         validating = false
                     }
                     return
@@ -231,9 +522,12 @@ struct OnboardingView: View {
                 try await provider.validateCredentials()
                 let snapshot = try await provider.fetchUsage()
                 await MainActor.run {
-                    appState.latestSnapshot = snapshot
+                    appState.snapshots[selectedProvider] = snapshot
+                    if selectedProvider == appState.activeProviderId || appState.latestSnapshot == nil {
+                        appState.latestSnapshot = snapshot
+                    }
                     appState.authStatus = .valid
-                    (NSApp.delegate as? AppDelegate)?.coordinator?.onCredentialsSaved()
+                    (NSApp.delegate as? AppDelegate)?.coordinator?.onCredentialsSaved(for: selectedProvider)
                     validating = false
                 }
             } catch let err as ProviderError {
@@ -249,16 +543,98 @@ struct OnboardingView: View {
             }
         }
     }
+
+    private func saveCredential() -> String? {
+        let trimmed = credentialInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch selectedProvider {
+        case .codex:
+            return nil   // CLI OAuth — nothing to save
+        case .claude:
+            return AuthService.shared.saveClaudeCredential(
+                ClaudeCredential(cookie: trimmed)
+            )
+        case .openai:
+            return AuthService.shared.saveOpenAICredential(
+                OpenAICredential(apiKey: trimmed)
+            )
+        case .openrouter:
+            return AuthService.shared.saveOpenRouterCredential(
+                OpenRouterCredential(apiKey: trimmed)
+            )
+        case .gemini:
+            return AuthService.shared.saveGeminiCredential(
+                GeminiCredential(apiKey: trimmed)
+            )
+        case .perplexity:
+            return AuthService.shared.savePerplexityCredential(
+                PerplexityCredential(apiKey: trimmed)
+            )
+        case .deepseek:
+            return AuthService.shared.saveDeepSeekCredential(
+                DeepSeekCredential(apiKey: trimmed)
+            )
+        case .elevenlabs:
+            return AuthService.shared.saveElevenLabsCredential(
+                ElevenLabsCredential(apiKey: trimmed)
+            )
+        }
+    }
+
+    // MARK: - Helper sub-views
+
+    @ViewBuilder
+    private func featureRow(_ icon: String, _ text: String, _ color: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(color)
+                .frame(width: 18)
+            Text(text)
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+        }
+    }
+
+    private var pillPreviewCard: some View {
+        VStack(spacing: 8) {
+            Text("This will live in your notch or menu bar:")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.black)
+                        .frame(width: 130, height: 22)
+                        .overlay(
+                            Text("camera")
+                                .font(.system(size: 7))
+                                .foregroundColor(Color.white.opacity(0.15))
+                        )
+                    OnboardingPillPreview()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            Text("Hover to expand. Click to pin.")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary.opacity(0.6))
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Theme.surface)
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Theme.stroke))
+        )
+    }
 }
 
-// MARK: - Secure cookie text editor
+// MARK: - Secure text editor (handles both cookie and API key)
 
-/// NSTextView wrapper that disables all macOS text-processing features
-/// (autocorrect, spellcheck, data detection, smart quotes, link detection)
-/// so the session cookie is never sent to Apple autocorrect services.
-/// Also enforces a hard 65 536-character length cap.
 private struct SecureCookieEditor: NSViewRepresentable {
     @Binding var text: String
+    var placeholder: String = ""
     private static let maxLength = 65_536
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -301,10 +677,8 @@ private struct SecureCookieEditor: NSViewRepresentable {
     }
 }
 
-// MARK: - Onboarding pill preview
+// MARK: - Animated pill preview (same as original)
 
-/// Animated replica of the compact pill used in the welcome step.
-/// Cycles through healthy → warning → critical to show mood-reactive colours.
 private struct OnboardingPillPreview: View {
     @State private var demoPercent: Double = 0.42
     @State private var glowPulse = false
@@ -326,7 +700,8 @@ private struct OnboardingPillPreview: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.08))
                 Capsule()
-                    .fill(LinearGradient(colors: [color.opacity(0.75), color], startPoint: .leading, endPoint: .trailing))
+                    .fill(LinearGradient(colors: [color.opacity(0.75), color],
+                                        startPoint: .leading, endPoint: .trailing))
                     .frame(width: max(4, CGFloat(demoPercent) * 80))
             }
             .frame(width: 80, height: 3)

@@ -25,28 +25,56 @@ struct SessionCard: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                // Hero number — rolls to new value like a counter
-                Text("\(displayedPercent)%")
-                    .font(.system(size: 44, weight: .black, design: .rounded))
-                    .foregroundColor(statusColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .onAppear { animateTo(Int((appState.sessionPercent * 100).rounded())) }
-                    .onChange(of: appState.sessionPercent) { newVal in
-                        animateTo(Int((newVal * 100).rounded()))
-                    }
-
-                // Reset countdown — the thing people actually want to see
-                if let reset = appState.sessionResetString {
-                    Text(reset)
+                if appState.activeIsBalance {
+                    // Provider reports remaining credit — show the amount, not a %.
+                    Text(appState.activeShortLabel)
+                        .font(.system(size: 34, weight: .black, design: .rounded))
+                        .foregroundColor(statusColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                    Text("Credit remaining")
                         .font(.system(.subheadline, design: .rounded).weight(.semibold))
                         .foregroundColor(Theme.textPrimary)
-                }
+                    Text("\(appState.activeProviderId.displayName) reports balance, not a usage %")
+                        .font(Theme.captionFont)
+                        .foregroundColor(statusColor.opacity(0.75))
+                } else if appState.activeIsStatusOnly {
+                    // Provider exposes no quota — show connectivity, not a number.
+                    Text("Connected")
+                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .foregroundColor(statusColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    Text("\(appState.activeProviderId.displayName) is reachable")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundColor(Theme.textPrimary)
+                    Text("No usage quota is exposed by this provider")
+                        .font(Theme.captionFont)
+                        .foregroundColor(statusColor.opacity(0.75))
+                } else {
+                    // Hero number — rolls to new value like a counter
+                    Text("\(displayedPercent)%")
+                        .font(.system(size: 44, weight: .black, design: .rounded))
+                        .foregroundColor(statusColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .onAppear { animateTo(Int((appState.sessionPercent * 100).rounded())) }
+                        .onChange(of: appState.sessionPercent) { newVal in
+                            animateTo(Int((newVal * 100).rounded()))
+                        }
 
-                // Pace context
-                Text(paceLabel)
-                    .font(Theme.captionFont)
-                    .foregroundColor(statusColor.opacity(0.75))
+                    // Reset countdown — the thing people actually want to see
+                    if let reset = appState.sessionResetString {
+                        Text(reset)
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .foregroundColor(Theme.textPrimary)
+                    }
+
+                    // Pace context
+                    Text(paceLabel)
+                        .font(Theme.captionFont)
+                        .foregroundColor(statusColor.opacity(0.75))
+                }
             }
 
             Spacer(minLength: 0)
@@ -87,12 +115,21 @@ struct SessionCard: View {
     }
 
     private var paceLabel: String {
-        if appState.isAtSessionLimit { return "Session limit reached" }
+        if appState.isAtSessionLimit { return limitLabel }
         switch appState.sessionStatus {
         case .critical: return "Heavy usage — consider pausing"
         case .warning:  return "Approaching limit"
         case .healthy:  return "On track"
         case .unknown:  return "Waiting for first sync…"
+        }
+    }
+
+    private var limitLabel: String {
+        switch appState.latestSnapshot?.primaryWindow.type {
+        case .monthly:  return "Monthly limit reached"
+        case .daily:    return "Daily limit reached"
+        case .weekly, .weeklyModel: return "Weekly limit reached"
+        default:        return "Session limit reached"
         }
     }
 }

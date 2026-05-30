@@ -24,7 +24,10 @@ final class NotchWindowController: NSObject {
     // hardware) and only the lower "visible extension" is seen by the user.
     // This is identical to how the iOS Dynamic Island works.
     private var notchH: CGFloat { ScreenUtils.notchScreen().safeAreaInsets.top }
-    private var compactSize:  NSSize { NSSize(width: 220, height: notchH + 22) }
+    // Single provider in the notch — a steady, compact pill width.
+    private var compactSize:  NSSize {
+        NSSize(width: 220, height: notchH + 22)
+    }
     private var expandedSize: NSSize { NSSize(width: 380, height: notchH + 300) }
 
     init(appState: AppState) {
@@ -57,8 +60,24 @@ final class NotchWindowController: NSObject {
     }
 
     deinit {
+        teardown()
+    }
+
+    /// Explicitly remove the notch panel from screen and stop all observers.
+    /// Called when the display mode no longer includes the notch — relying on
+    /// `deinit` alone is unreliable because AppKit can keep an on-screen window
+    /// alive, leaving a ghost pill behind.
+    func teardown() {
         hoverTimer?.invalidate()
-        if let m = clickOutsideMonitor { NSEvent.removeMonitor(m) }
+        hoverTimer = nil
+        if let m = clickOutsideMonitor {
+            NSEvent.removeMonitor(m)
+            clickOutsideMonitor = nil
+        }
+        cancellables.removeAll()
+        panel.orderOut(nil)
+        panel.contentView = nil
+        hostingController = nil
     }
 
     func present() {
@@ -198,9 +217,11 @@ struct RootNotchView: View {
             case .hidden:
                 Color.clear
             case .compactIdle, .compactHover:
+                // Always one provider in the notch (the active one). Switch which
+                // provider via the expanded panel's provider switcher.
                 CompactView(appState: appState)
-                    .onTapGesture { controller.userClicked() }
-                    .contextMenu {
+                .onTapGesture { controller.userClicked() }
+                .contextMenu {
                         Button { (NSApp.delegate as? AppDelegate)?.coordinator?.refreshNow() } label: {
                             Label("Refresh", systemImage: "arrow.clockwise")
                         }
@@ -223,14 +244,7 @@ struct RootNotchView: View {
                 ExpandedPanelView(appState: appState, controller: controller)
             }
         }
-        .sheet(isPresented: $appState.showOnboarding) {
-            OnboardingView(appState: appState).frame(width: 420, height: 480)
-        }
-        .sheet(isPresented: $appState.showSettings) {
-            SettingsView(appState: appState).frame(width: 440, height: 520)
-        }
-        .sheet(isPresented: $appState.showDiagnostics) {
-            DiagnosticsView(appState: appState).frame(width: 420, height: 360)
-        }
+        // Settings / Onboarding / Diagnostics are presented as standalone windows
+        // by AppDelegate so they work in every display mode (incl. menu-bar-only).
     }
 }

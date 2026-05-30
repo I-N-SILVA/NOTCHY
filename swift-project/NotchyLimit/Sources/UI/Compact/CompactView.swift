@@ -22,6 +22,18 @@ struct CompactView: View {
 
             // Visible content strip (bottom 22 pt, below the notch edge).
             HStack(spacing: 7) {
+                // Which provider this pill is showing (switch via the expanded panel).
+                Image(systemName: appState.activeProviderId.iconSymbol)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.85))
+
+                // Outage badge — appears only when the active provider has an incident.
+                if let incident = appState.activeIncident {
+                    Image(systemName: incident.level.glyph)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(incident.level.tint)
+                }
+
                 // Status dot with ambient pulse
                 ZStack {
                     Circle()
@@ -33,21 +45,29 @@ struct CompactView: View {
                         .frame(width: 5, height: 5)
                 }
 
-                // Animated progress bar
-                CompactProgressBar(progress: appState.sessionPercent, color: statusColor)
-                    .frame(height: 3)
+                if appState.activeShowsPercentBar {
+                    // Animated progress bar
+                    CompactProgressBar(progress: appState.sessionPercent, color: statusColor)
+                        .frame(height: 3)
 
-                // Percentage — or reset countdown when the session is blocked
-                if appState.isAtSessionLimit {
-                    Text(appState.sessionResetShortString ?? "LIMIT")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(.white)
-                        .frame(minWidth: 40, alignment: .trailing)
+                    // Percentage — or reset countdown when the session is blocked
+                    if appState.isAtSessionLimit {
+                        Text(appState.sessionResetShortString ?? "LIMIT")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                            .frame(minWidth: 40, alignment: .trailing)
+                    } else {
+                        Text("\(Int((appState.sessionPercent * 100).rounded()))%")
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.88))
+                            .frame(minWidth: 25, alignment: .trailing)
+                    }
                 } else {
-                    Text("\(Int((appState.sessionPercent * 100).rounded()))%")
+                    // Balance ("$110.00") or connected-only ("Active") — no fake bar.
+                    Text(appState.activeShortLabel)
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
                         .foregroundColor(.white.opacity(0.88))
-                        .frame(minWidth: 25, alignment: .trailing)
+                        .frame(minWidth: 40, alignment: .trailing)
                 }
             }
             .padding(.horizontal, 10)

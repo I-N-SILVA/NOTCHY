@@ -1,8 +1,6 @@
 import Foundation
 
 /// Process-wide registry of available providers.
-///
-/// Today: Claude only. Tomorrow: append Gemini / ChatGPT / etc. in `bootstrap()`.
 public final class ProviderRegistry {
     public static let shared = ProviderRegistry()
     private init() {}
@@ -11,7 +9,13 @@ public final class ProviderRegistry {
 
     public func bootstrap() {
         register(ClaudeProvider())
-        // Future: register(GeminiProvider()) once implemented.
+        register(CodexProvider())
+        register(OpenAIProvider())
+        register(OpenRouterProvider())
+        register(GeminiProvider())
+        register(PerplexityProvider())
+        register(DeepSeekProvider())
+        register(ElevenLabsProvider())
     }
 
     public func register(_ provider: UsageProvider) {
@@ -23,6 +27,6 @@ public final class ProviderRegistry {
     }
 
     public func availableProviders() -> [UsageProvider] {
-        ProviderId.allCases.compactMap { providers[$0] }
+        ProviderId.allCases.compactMap { providers[$0] }.filter { $0.isAvailable }
     }
 }

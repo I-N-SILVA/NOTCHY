@@ -75,14 +75,26 @@ swiftc \
   "$SOURCES_DIR/Platform/KeychainStore.swift" \
   "$SOURCES_DIR/Platform/NotchDetector.swift" \
   "$SOURCES_DIR/Platform/ScreenUtils.swift" \
+  "$SOURCES_DIR/Platform/DisplayMode.swift" \
   "$SOURCES_DIR/Providers/UsageProvider.swift" \
   "$SOURCES_DIR/Providers/ProviderRegistry.swift" \
   "$SOURCES_DIR/Providers/Claude/ClaudeCredential.swift" \
   "$SOURCES_DIR/Providers/Claude/ClaudeEndpoint.swift" \
   "$SOURCES_DIR/Providers/Claude/ClaudeUsageDTO.swift" \
+  "$SOURCES_DIR/Providers/Claude/ClaudeOAuthCredential.swift" \
   "$SOURCES_DIR/Providers/Claude/ClaudeProvider.swift" \
+  "$SOURCES_DIR/Providers/Codex/CodexProvider.swift" \
   "$SOURCES_DIR/Providers/Gemini/GeminiProvider.swift" \
+  "$SOURCES_DIR/Providers/Perplexity/PerplexityProvider.swift" \
+  "$SOURCES_DIR/Providers/DeepSeek/DeepSeekProvider.swift" \
+  "$SOURCES_DIR/Providers/ElevenLabs/ElevenLabsProvider.swift" \
+  "$SOURCES_DIR/Providers/OpenRouter/OpenRouterProvider.swift" \
+  "$SOURCES_DIR/Providers/OpenAI/OpenAICredential.swift" \
+  "$SOURCES_DIR/Providers/OpenAI/OpenAIEndpoint.swift" \
+  "$SOURCES_DIR/Providers/OpenAI/OpenAIUsageDTO.swift" \
+  "$SOURCES_DIR/Providers/OpenAI/OpenAIProvider.swift" \
   "$SOURCES_DIR/Services/AuthService.swift" \
+  "$SOURCES_DIR/Services/IncidentMonitor.swift" \
   "$SOURCES_DIR/Services/NotificationService.swift" \
   "$SOURCES_DIR/Services/UsageCoordinator.swift" \
   "$SOURCES_DIR/Services/UsageService.swift" \
@@ -93,6 +105,8 @@ swiftc \
   "$SOURCES_DIR/UI/Compact/StatusDot.swift" \
   "$SOURCES_DIR/UI/Compact/CompactProgressBar.swift" \
   "$SOURCES_DIR/UI/Compact/CompactView.swift" \
+  "$SOURCES_DIR/UI/Compact/ConstellationView.swift" \
+  "$SOURCES_DIR/UI/MenuBar/MenuBarController.swift" \
   "$SOURCES_DIR/UI/NotchWindowController.swift" \
   "$SOURCES_DIR/UI/Expanded/HeaderRow.swift" \
   "$SOURCES_DIR/UI/Expanded/SessionCard.swift" \
@@ -100,6 +114,7 @@ swiftc \
   "$SOURCES_DIR/UI/Expanded/WeeklyCard.swift" \
   "$SOURCES_DIR/UI/Expanded/ActionsRow.swift" \
   "$SOURCES_DIR/UI/Expanded/FooterRow.swift" \
+  "$SOURCES_DIR/UI/Expanded/ProviderSwitcherRow.swift" \
   "$SOURCES_DIR/UI/Expanded/ExpandedPanelView.swift" \
   "$SOURCES_DIR/UI/Onboarding/OnboardingView.swift" \
   "$SOURCES_DIR/UI/Settings/SettingsView.swift" \

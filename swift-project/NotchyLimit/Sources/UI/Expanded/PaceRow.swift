@@ -18,7 +18,9 @@ struct PaceRow: View {
     }
 
     private var paceLabel: String {
-        if appState.isAtSessionLimit { return "Session blocked — awaiting reset." }
+        if appState.activeIsBalance { return "Credit balance — usage % not provided." }
+        if appState.activeIsStatusOnly { return "Connected — no usage data exposed." }
+        if appState.isAtSessionLimit { return limitLabel }
         switch appState.sessionStatus {
         case .critical: return "Heavy usage — consider pausing."
         case .warning:  return "Slightly above pace."
@@ -27,7 +29,18 @@ struct PaceRow: View {
         }
     }
 
+    private var limitLabel: String {
+        switch appState.latestSnapshot?.primaryWindow.type {
+        case .monthly:  return "Monthly spend limit reached."
+        case .daily:    return "Daily limit reached."
+        case .weekly, .weeklyModel: return "Weekly limit reached."
+        default:        return "Session blocked — awaiting reset."
+        }
+    }
+
     private var paceIcon: String {
+        if appState.activeIsBalance { return "creditcard.fill" }
+        if appState.activeIsStatusOnly { return "checkmark.circle.fill" }
         switch appState.sessionStatus {
         case .critical: return "exclamationmark.triangle.fill"
         case .warning:  return "hare.fill"

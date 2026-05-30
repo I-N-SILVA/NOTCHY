@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DiagnosticsView: View {
     @ObservedObject var appState: AppState
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
@@ -13,7 +12,7 @@ struct DiagnosticsView: View {
                         .font(Theme.displayFont)
                         .foregroundColor(Theme.textPrimary)
                     Spacer()
-                    Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
+                    Button("Close") { appState.showDiagnostics = false }.keyboardShortcut(.cancelAction)
                 }
 
                 row("Provider", appState.activeProviderId.displayName)

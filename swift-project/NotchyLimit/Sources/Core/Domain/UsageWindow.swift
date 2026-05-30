@@ -3,9 +3,13 @@ import SwiftUI
 
 /// Which window inside a provider this usage belongs to.
 public enum UsageWindowType: String, Codable, Hashable {
-    case session    // e.g. Claude's 5-hour rolling window
-    case weekly     // e.g. Claude's 7-day window
-    case weeklyModel // e.g. Claude Pro's 7-day Sonnet sub-window
+    case session     // Claude's 5-hour rolling window
+    case weekly      // Claude's 7-day window
+    case weeklyModel // Claude Pro's 7-day Sonnet sub-window
+    case monthly     // Calendar-month billing window (OpenAI spend vs limit)
+    case daily       // Rolling daily quota (Gemini Code Assist per-model buckets)
+    case connected   // Provider authenticated but exposes no quota endpoint (Gemini, Perplexity)
+    case balance     // Provider reports a remaining credit balance, not a % (DeepSeek)
 }
 
 /// Health classification derived from percent used + reset proximity.
@@ -38,6 +42,9 @@ public struct UsageWindow: Codable, Hashable {
     public let limitAmount: Double?
     public let resetAt: Date?
     public let lastUpdated: Date
+    /// Pre-formatted short text for windows without a percentage (e.g. a
+    /// `.balance` window's "$110.00"). Nil for percentage windows.
+    public let label: String?
 
     public init(
         type: UsageWindowType,
@@ -45,7 +52,8 @@ public struct UsageWindow: Codable, Hashable {
         usedAmount: Double? = nil,
         limitAmount: Double? = nil,
         resetAt: Date? = nil,
-        lastUpdated: Date = Date()
+        lastUpdated: Date = Date(),
+        label: String? = nil
     ) {
         self.type = type
         self.percentUsed = percentUsed
@@ -53,6 +61,7 @@ public struct UsageWindow: Codable, Hashable {
         self.limitAmount = limitAmount
         self.resetAt = resetAt
         self.lastUpdated = lastUpdated
+        self.label = label
     }
 
     /// Derive a health classification using the default thresholds.

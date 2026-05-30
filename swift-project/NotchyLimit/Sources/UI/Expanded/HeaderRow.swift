@@ -12,7 +12,7 @@ struct HeaderRow: View {
             Circle()
                 .fill(Theme.accentWarm)
                 .frame(width: 6, height: 6)
-            Text("Claude")
+            Text(appState.activeProviderId.displayName)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundColor(Theme.textPrimary)
 
