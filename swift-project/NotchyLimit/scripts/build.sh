@@ -148,6 +148,16 @@ iconutil -c icns "$ICONSET" -o "$APP_CONTENTS/Resources/AppIcon.icns"
 # Strip quarantine attribute so macOS doesn't block launch
 xattr -cr "$APP_BUNDLE" 2>/dev/null || true
 
+# Ad-hoc sign the whole bundle (no Developer ID needed). This seals the
+# Info.plist + resources so a downloaded/quarantined copy shows the mild
+# "unidentified developer" prompt (right-click → Open) instead of the scary
+# "app is damaged" error you get from a half-signed bundle.
+echo "==> Ad-hoc signing the bundle (codesign --sign -)"
+codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null \
+  && codesign --verify --strict "$APP_BUNDLE" 2>/dev/null \
+  && echo "    ad-hoc signature OK" \
+  || echo "    (ad-hoc signing skipped/failed — app still runs locally)"
+
 echo ""
 echo "==> Built (unsigned, local use only): $APP_BUNDLE"
 echo "    Run with: open $APP_BUNDLE"
