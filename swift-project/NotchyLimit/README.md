@@ -46,18 +46,29 @@ Supports **Claude** (Claude Code / Claude.ai — real 5h + weekly), **Codex** (C
 
 ## Install
 
-### Option A — Download the release (fastest)
+### Option A — Homebrew (recommended)
+
+```bash
+brew install --cask I-N-SILVA/notchy/notchy
+```
+
+The [cask](https://github.com/I-N-SILVA/homebrew-notchy) clears the macOS quarantine for you, so it launches with **no Gatekeeper prompt**. Update with `brew upgrade --cask notchy`.
+
+### Option B — Download the release DMG
 
 1. Grab `NotchyLimit-Installer.dmg` from the [latest release](https://github.com/I-N-SILVA/NOTCHY/releases/latest).
 2. Open the DMG and drag **NotchyLimit** to **Applications**.
 3. **First launch (unsigned build):** the app isn't notarized yet, so macOS Gatekeeper blocks a normal double-click. Either:
    - **Right-click** the app → **Open** → **Open** in the dialog, **or**
    - run `xattr -dr com.apple.quarantine /Applications/NotchyLimit.app` then open it.
-4. Notchy lives in the menu bar / notch — there's no Dock icon (it's a menu-bar agent).
 
+![Opening Notchy the first time: right-click → Open → Open](docs/install.gif)
+
+> Notchy lives in the menu bar / notch — there's no Dock icon (it's a menu-bar agent).
+>
 > **Keychain prompt for Claude:** if you use Claude Code, Notchy reads its login token from your Keychain. macOS will ask once — click **Always Allow** so it can show your Claude usage.
 
-### Option B — Build from source (no Xcode required)
+### Option C — Build from source (no Xcode required)
 
 ```bash
 xcode-select --install
@@ -67,7 +78,7 @@ bash scripts/build.sh
 open build/NotchyLimit.app
 ```
 
-### Option C — With Xcode (for development)
+### Option D — With Xcode (for development)
 
 ```bash
 brew install xcodegen
