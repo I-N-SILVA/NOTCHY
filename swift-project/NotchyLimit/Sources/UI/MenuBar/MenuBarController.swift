@@ -370,17 +370,28 @@ private struct MenuBarPopoverView: View {
         } label: {
             VStack(spacing: 7) {
                 HStack(spacing: 10) {
-                    // Icon bubble, tinted by status
+                    // Icon bubble, tinted by status. The brand logo always stays
+                    // visible — even during an outage or error — so the row keeps its
+                    // identity. An issue is shown as a small corner badge plus the
+                    // tint and subline, rather than replacing the logo with a warning.
                     ZStack {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(tint.opacity(0.16))
                             .frame(width: 30, height: 30)
+                        ProviderIconView(id: id, size: 18, fallbackColor: tint)
+                    }
+                    .overlay(alignment: .topTrailing) {
                         if let incident {
                             Image(systemName: incident.level.glyph)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(tint)
-                        } else {
-                            ProviderIconView(id: id, size: 18, fallbackColor: tint)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(incident.level.tint)
+                                .padding(2)
+                                .background(
+                                    Circle()
+                                        .fill(Color.black.opacity(0.85))
+                                        .overlay(Circle().strokeBorder(Theme.stroke, lineWidth: 0.5))
+                                )
+                                .offset(x: 4, y: -4)
                         }
                     }
 
