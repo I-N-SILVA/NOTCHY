@@ -87,11 +87,6 @@ final class MenuBarController: NSObject {
     private func updateButtonAppearance() {
         guard let button = statusItem?.button else { return }
 
-        if button.image == nil {
-            button.image = NotchyStatusGlyph.image()
-            button.image?.isTemplate = true
-        }
-
         // Trailing value next to the glyph.
         let value: String
         if case .syncing = appState.syncStatus {
@@ -115,7 +110,20 @@ final class MenuBarController: NSObject {
             default:        tint = nil
             }
         }
-        button.contentTintColor = tint
+
+        // Render the glyph directly rather than tinting via `button.contentTintColor`.
+        // A non-nil `contentTintColor` overrides the status bar's automatic template
+        // tinting — the mechanism that makes the glyph render white over a dark or
+        // translucent menu bar (e.g. Light mode sitting on a dark wallpaper) and black
+        // over a light one. When the colour carries meaning we bake it into a
+        // non-template copy instead; otherwise we hand the menu bar a clean template
+        // image and let it adapt on its own. We never assign `contentTintColor` so the
+        // template path is always honoured.
+        if let tint {
+            button.image = NotchyStatusGlyph.coloredImage(tint)
+        } else {
+            button.image = NotchyStatusGlyph.image()
+        }
 
         if value.isEmpty {
             button.imagePosition = .imageOnly
@@ -167,42 +175,88 @@ final class MenuBarController: NSObject {
 /// Draws the Notchy mascot as a crisp monochrome template image for the menu bar:
 /// a rounded "screen" with a little notch tab on top and two eye cut-outs.
 /// Rendered as a template so macOS handles light/dark + selection automatically.
+///
+/// The glyph is backed by an `NSBitmapImageRep` rather than the block-based
+/// `NSImage(size:flipped:drawingHandler:)` initializer. That initializer yields
+/// an `NSCustomImageRep`, which the status bar does not always tint as a template
+/// — so on a dark or translucent menu bar (for example Light mode over a dark
+/// wallpaper) the glyph could render black and become invisible. A bitmap-backed
+/// template image is tinted reliably (issue #13).
 enum NotchyStatusGlyph {
+    /// Monochrome template image — the menu bar tints it (white over a dark bar,
+    /// black over a light one, dimmed when the app is inactive) automatically.
     static func image(pointSize: CGFloat = 15) -> NSImage {
+        renderImage(pointSize: pointSize, fill: .black, isTemplate: true)
+    }
+
+    /// Solid-colour, non-template copy used when the colour carries meaning
+    /// (warning / critical / outage). Baking the colour in keeps us off
+    /// `contentTintColor`, which would otherwise disable template tinting.
+    static func coloredImage(_ color: NSColor, pointSize: CGFloat = 15) -> NSImage {
+        renderImage(pointSize: pointSize, fill: color, isTemplate: false)
+    }
+
+    private static func renderImage(pointSize: CGFloat, fill: NSColor, isTemplate: Bool) -> NSImage {
         let size = NSSize(width: ceil(pointSize * 1.15), height: pointSize)
-        let image = NSImage(size: size, flipped: false) { rect in
-            // Head / screen
-            let head = NSRect(
-                x: rect.width * 0.06,
-                y: rect.height * 0.02,
-                width: rect.width * 0.88,
-                height: rect.height * 0.74
-            )
-            let path = NSBezierPath()
-            path.windingRule = .evenOdd
-            path.append(NSBezierPath(roundedRect: head,
-                                     xRadius: rect.height * 0.22,
-                                     yRadius: rect.height * 0.22))
+        let scale = 2 // render @2x so the glyph stays crisp on Retina displays
+        let image = NSImage(size: size)
 
-            // Notch tab on top (the logo's red bit), touching the head edge.
-            let tabW = rect.width * 0.30
-            let tabH = rect.height * 0.18
-            let tab = NSRect(x: rect.midX - tabW / 2, y: head.maxY - 0.5, width: tabW, height: tabH)
-            path.append(NSBezierPath(roundedRect: tab, xRadius: tabH * 0.45, yRadius: tabH * 0.45))
-
-            // Two eyes, punched out via even-odd winding.
-            let eyeR = rect.height * 0.105
-            let eyeY = head.midY - eyeR
-            let dx = rect.width * 0.18
-            path.append(NSBezierPath(ovalIn: NSRect(x: rect.midX - dx - eyeR, y: eyeY, width: eyeR * 2, height: eyeR * 2)))
-            path.append(NSBezierPath(ovalIn: NSRect(x: rect.midX + dx - eyeR, y: eyeY, width: eyeR * 2, height: eyeR * 2)))
-
-            NSColor.black.setFill()
-            path.fill()
-            return true
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width) * scale,
+            pixelsHigh: Int(size.height) * scale,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else {
+            image.isTemplate = isTemplate
+            return image
         }
-        image.isTemplate = true
+        rep.size = size
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        draw(in: NSRect(origin: .zero, size: size), fill: fill)
+        NSGraphicsContext.restoreGraphicsState()
+
+        image.addRepresentation(rep)
+        image.isTemplate = isTemplate
         return image
+    }
+
+    private static func draw(in rect: NSRect, fill: NSColor) {
+        // Head / screen
+        let head = NSRect(
+            x: rect.width * 0.06,
+            y: rect.height * 0.02,
+            width: rect.width * 0.88,
+            height: rect.height * 0.74
+        )
+        let path = NSBezierPath()
+        path.windingRule = .evenOdd
+        path.append(NSBezierPath(roundedRect: head,
+                                 xRadius: rect.height * 0.22,
+                                 yRadius: rect.height * 0.22))
+
+        // Notch tab on top (the logo's red bit), touching the head edge.
+        let tabW = rect.width * 0.30
+        let tabH = rect.height * 0.18
+        let tab = NSRect(x: rect.midX - tabW / 2, y: head.maxY - 0.5, width: tabW, height: tabH)
+        path.append(NSBezierPath(roundedRect: tab, xRadius: tabH * 0.45, yRadius: tabH * 0.45))
+
+        // Two eyes, punched out via even-odd winding.
+        let eyeR = rect.height * 0.105
+        let eyeY = head.midY - eyeR
+        let dx = rect.width * 0.18
+        path.append(NSBezierPath(ovalIn: NSRect(x: rect.midX - dx - eyeR, y: eyeY, width: eyeR * 2, height: eyeR * 2)))
+        path.append(NSBezierPath(ovalIn: NSRect(x: rect.midX + dx - eyeR, y: eyeY, width: eyeR * 2, height: eyeR * 2)))
+
+        fill.setFill()
+        path.fill()
     }
 }
 
