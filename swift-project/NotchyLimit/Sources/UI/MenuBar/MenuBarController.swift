@@ -183,28 +183,41 @@ final class MenuBarController: NSObject {
 /// wallpaper) the glyph could render black and become invisible. A bitmap-backed
 /// template image is tinted reliably (issue #13).
 enum NotchyStatusGlyph {
+    // `updateButtonAppearance()` runs on every published state change, so the glyph
+    // is requested far more often than it actually changes. Cache the rendered
+    // images (all on the main thread) to avoid repeated bitmap allocation + drawing.
+    private static var templateCache: NSImage?
+    private static var coloredCache: [NSColor: NSImage] = [:]
+
     /// Monochrome template image — the menu bar tints it (white over a dark bar,
     /// black over a light one, dimmed when the app is inactive) automatically.
     static func image(pointSize: CGFloat = 15) -> NSImage {
-        renderImage(pointSize: pointSize, fill: .black, isTemplate: true)
+        if let cached = templateCache { return cached }
+        let rendered = renderImage(pointSize: pointSize, fill: .black, isTemplate: true)
+        templateCache = rendered
+        return rendered
     }
 
     /// Solid-colour, non-template copy used when the colour carries meaning
     /// (warning / critical / outage). Baking the colour in keeps us off
     /// `contentTintColor`, which would otherwise disable template tinting.
     static func coloredImage(_ color: NSColor, pointSize: CGFloat = 15) -> NSImage {
-        renderImage(pointSize: pointSize, fill: color, isTemplate: false)
+        if let cached = coloredCache[color] { return cached }
+        let rendered = renderImage(pointSize: pointSize, fill: color, isTemplate: false)
+        coloredCache[color] = rendered
+        return rendered
     }
 
     private static func renderImage(pointSize: CGFloat, fill: NSColor, isTemplate: Bool) -> NSImage {
         let size = NSSize(width: ceil(pointSize * 1.15), height: pointSize)
-        let scale = 2 // render @2x so the glyph stays crisp on Retina displays
-        let image = NSImage(size: size)
+        let scale: CGFloat = 2 // render @2x so the glyph stays crisp on Retina displays
 
+        // Round pixel dimensions up so a non-integer point size never under-allocates
+        // the backing store (which would clip the glyph).
         guard let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil,
-            pixelsWide: Int(size.width) * scale,
-            pixelsHigh: Int(size.height) * scale,
+            pixelsWide: Int(ceil(size.width * scale)),
+            pixelsHigh: Int(ceil(size.height * scale)),
             bitsPerSample: 8,
             samplesPerPixel: 4,
             hasAlpha: true,
@@ -213,17 +226,35 @@ enum NotchyStatusGlyph {
             bytesPerRow: 0,
             bitsPerPixel: 0
         ) else {
-            image.isTemplate = isTemplate
-            return image
+            // If the bitmap rep can't be allocated, fall back to a drawing-handler
+            // image. Its template tinting is less reliable, but a visible glyph beats
+            // an empty one — the status icon must never disappear entirely (issue #13).
+            return fallbackImage(size: size, fill: fill, isTemplate: isTemplate)
         }
         rep.size = size
 
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-        draw(in: NSRect(origin: .zero, size: size), fill: fill)
+        let rect = NSRect(origin: .zero, size: size)
+        // The freshly allocated buffer isn't guaranteed to be zeroed, so clear it to
+        // transparent before drawing — otherwise the area outside the glyph could
+        // contain garbage instead of the transparency a template image relies on.
+        NSColor.clear.set()
+        rect.fill()
+        draw(in: rect, fill: fill)
         NSGraphicsContext.restoreGraphicsState()
 
+        let image = NSImage(size: size)
         image.addRepresentation(rep)
+        image.isTemplate = isTemplate
+        return image
+    }
+
+    private static func fallbackImage(size: NSSize, fill: NSColor, isTemplate: Bool) -> NSImage {
+        let image = NSImage(size: size, flipped: false) { rect in
+            draw(in: rect, fill: fill)
+            return true
+        }
         image.isTemplate = isTemplate
         return image
     }
