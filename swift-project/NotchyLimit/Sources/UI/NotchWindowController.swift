@@ -17,6 +17,7 @@ final class NotchWindowController: NSObject {
     private var hoverTimer: Timer?
     private var isCurrentlyHovering = false
     private var clickOutsideMonitor: Any?
+    private var screenParametersObserver: NSObjectProtocol?
 
     // Panel heights include safeAreaInsets.top (the hardware notch height,
     // ~37 pt on MBP 14/16").  The panel is anchored at screen.frame.maxY so
@@ -57,6 +58,8 @@ final class NotchWindowController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] state in self?.applyState(state) }
             .store(in: &cancellables)
+
+        startScreenParametersObserver()
     }
 
     deinit {
@@ -73,6 +76,10 @@ final class NotchWindowController: NSObject {
         if let m = clickOutsideMonitor {
             NSEvent.removeMonitor(m)
             clickOutsideMonitor = nil
+        }
+        if let observer = screenParametersObserver {
+            NotificationCenter.default.removeObserver(observer)
+            screenParametersObserver = nil
         }
         cancellables.removeAll()
         panel.orderOut(nil)
@@ -164,13 +171,47 @@ final class NotchWindowController: NSObject {
 
     // MARK: - Layout
 
-    private func applyState(_ state: NotchState) {
-        let targetSize: NSSize
-        switch state {
-        case .hidden:                         targetSize = NSSize(width: 1, height: 1)
-        case .compactIdle, .compactHover:     targetSize = compactSize
-        case .expandedHover, .expandedPinned: targetSize = expandedSize
+    private func startScreenParametersObserver() {
+        if let observer = screenParametersObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
+
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: NSApplication.shared,
+            queue: .main
+        ) { [weak self] _ in
+            self?.screenParametersDidChange()
+        }
+    }
+
+    private func screenParametersDidChange() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.screenParametersDidChange()
+            }
+            return
+        }
+
+        repositionPanelForCurrentScreen()
+    }
+
+    private func targetSize(for state: NotchState) -> NSSize {
+        switch state {
+        case .hidden:                         return NSSize(width: 1, height: 1)
+        case .compactIdle, .compactHover:     return compactSize
+        case .expandedHover, .expandedPinned: return expandedSize
+        }
+    }
+
+    private func repositionPanelForCurrentScreen() {
+        let targetSize = targetSize(for: appState.notchState)
+        let origin = ScreenUtils.topCenteredOrigin(forPanelSize: targetSize)
+        panel.setFrame(NSRect(origin: origin, size: targetSize), display: true)
+    }
+
+    private func applyState(_ state: NotchState) {
+        let targetSize = targetSize(for: state)
 
         let isExpanding = (state == .expandedHover || state == .expandedPinned)
                        && panel.frame.height < (notchH + 80)  // currently compact
@@ -185,8 +226,9 @@ final class NotchWindowController: NSObject {
                 panel.animator().setFrame(NSRect(origin: midOrigin, size: midSize), display: true)
             }
             // Phase 2: drop height after stretch settles (~0.12 s later)
-            let finalOrigin = ScreenUtils.topCenteredOrigin(forPanelSize: targetSize)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+                guard let self else { return }
+                let finalOrigin = ScreenUtils.topCenteredOrigin(forPanelSize: targetSize)
                 NSAnimationContext.runAnimationGroup { ctx in
                     ctx.duration = 0.30
                     ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)

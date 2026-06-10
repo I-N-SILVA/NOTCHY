@@ -6,8 +6,7 @@ import AppKit
 enum NotchDetector {
     static func hasHardwareNotch() -> Bool {
         if #available(macOS 12.0, *) {
-            guard let main = NSScreen.main else { return false }
-            return main.safeAreaInsets.top > 0
+            return NSScreen.screens.contains { $0.safeAreaInsets.top > 0 }
         }
         return false
     }
